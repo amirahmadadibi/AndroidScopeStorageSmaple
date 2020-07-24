@@ -46,6 +46,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -57,109 +58,128 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivityViewModel(application: Application) : AndroidViewModel(application) {
-  private val _images = MutableLiveData<List<Image>>()
-  val images: LiveData<List<Image>> get() = _images
+    private val _images = MutableLiveData<List<Image>>()
+    val images: LiveData<List<Image>> get() = _images
 
-  private var contentObserver: ContentObserver? = null
+    private var contentObserver: ContentObserver? = null
 
-  private var pendingDeleteImage: Image? = null
-  private val _permissionNeededForDelete = MutableLiveData<IntentSender?>()
-  val permissionNeededForDelete: LiveData<IntentSender?> = _permissionNeededForDelete
+    private var pendingDeleteImage: Image? = null
+    private val _permissionNeededForDelete = MutableLiveData<IntentSender?>()
+    val permissionNeededForDelete: LiveData<IntentSender?> = _permissionNeededForDelete
 
 
-  fun loadImages() {
-    viewModelScope.launch {
-      val imageList = queryImages()
-      _images.postValue(imageList)
+    fun loadImages() {
+        viewModelScope.launch {
+            val imageList = queryImages()
+            _images.postValue(imageList)
 
-      if (contentObserver == null) {
-        // TODO: Register the content observer to listen for changes
-      }
-    }
-  }
-
-  fun deleteImage(image: Image) {
-    viewModelScope.launch {
-      performDeleteImage(image)
-    }
-  }
-
-  fun deletePendingImage() {
-    pendingDeleteImage?.let { image ->
-      pendingDeleteImage = null
-      deleteImage(image)
-    }
-  }
-
-  @TargetApi(Build.VERSION_CODES.Q)
-  private suspend fun queryImages(): List<Image> {
-    var imageList = mutableListOf<Image>()
-
-    withContext(Dispatchers.IO) {
-      // TODO: Add code to fetch the images from MediaStore
+            if (contentObserver == null) {
+                // TODO: Register the content observer to listen for changes
+            }
+        }
     }
 
-    return imageList
-  }
-
-  @TargetApi(Build.VERSION_CODES.Q)
-  private fun addImagesFromCursor(cursor: Cursor): MutableList<Image> {
-    val images = mutableListOf<Image>()
-
-
-    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-    val dateTakenColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
-    val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-
-    while (cursor.moveToNext()) {
-
-      val id = cursor.getLong(idColumn)
-      val dateTaken = Date(cursor.getLong(dateTakenColumn))
-      val displayName = cursor.getString(displayNameColumn)
-
-      val contentUri = ContentUris.withAppendedId(
-          MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-          id
-      )
-
-      val image = Image(id, displayName, dateTaken, contentUri)
-      images += image
-
+    fun deleteImage(image: Image) {
+        viewModelScope.launch {
+            performDeleteImage(image)
+        }
     }
-    return images
-  }
 
-  private suspend fun performDeleteImage(image: Image) {
-    withContext(Dispatchers.IO) {
-      // TODO: Add code to delete an image from MediaStore
+    fun deletePendingImage() {
+        pendingDeleteImage?.let { image ->
+            pendingDeleteImage = null
+            deleteImage(image)
+        }
     }
-  }
 
-  @Suppress("SameParameterValue")
-  @SuppressLint("SimpleDateFormat")
-  private fun dateToTimestamp(day: Int, month: Int, year: Int): Long =
-      SimpleDateFormat("dd.MM.yyyy").let { formatter ->
-        formatter.parse("$day.$month.$year")?.time ?: 0
-      }
+    @TargetApi(Build.VERSION_CODES.Q)
+    private suspend fun queryImages(): List<Image> {
+        var imageList = mutableListOf<Image>()
+
+        withContext(Dispatchers.IO) {
+            // TODO: Add code to fetch the images from MediaStore
+            val projection = arrayOf(
+                    MediaStore.Images.Media._ID,
+                    MediaStore.Images.Media.DISPLAY_NAME,
+                    MediaStore.Images.Media.DATE_TAKEN
+            )
+            val selection = "${MediaStore.Images.Media.DATE_TAKEN} >= ?"
+            val selectionArgs = arrayOf(dateToTimestamp(day = 1, month = 1, year = 2020).toString())
+            val sortOrder = "${MediaStore.Images.Media.DATE_TAKEN} DESC"
+
+            getApplication<Application>().contentResolver.query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    sortOrder
+            )?.use { cursor ->
+                imageList = addImagesFromCursor(cursor)
+            }
+
+        }
+
+        return imageList
+    }
+
+    @TargetApi(Build.VERSION_CODES.Q)
+    private fun addImagesFromCursor(cursor: Cursor): MutableList<Image> {
+        val images = mutableListOf<Image>()
 
 
-  override fun onCleared() {
-    // TODO: Unregister the content observer
-  }
+        val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+        val dateTakenColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
+        val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+
+        while (cursor.moveToNext()) {
+
+            val id = cursor.getLong(idColumn)
+            val dateTaken = Date(cursor.getLong(dateTakenColumn))
+            val displayName = cursor.getString(displayNameColumn)
+
+            val contentUri = ContentUris.withAppendedId(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    id
+            )
+
+            val image = Image(id, displayName, dateTaken, contentUri)
+            images += image
+
+        }
+        return images
+    }
+
+    private suspend fun performDeleteImage(image: Image) {
+        withContext(Dispatchers.IO) {
+            // TODO: Add code to delete an image from MediaStore
+        }
+    }
+
+    @Suppress("SameParameterValue")
+    @SuppressLint("SimpleDateFormat")
+    private fun dateToTimestamp(day: Int, month: Int, year: Int): Long =
+            SimpleDateFormat("dd.MM.yyyy").let { formatter ->
+                formatter.parse("$day.$month.$year")?.time ?: 0
+            }
+
+
+    override fun onCleared() {
+        // TODO: Unregister the content observer
+    }
 }
 
 /**
  * Extension method to register a [ContentObserver]
  */
 private fun ContentResolver.registerObserver(
-    uri: Uri,
-    observer: (selfChange: Boolean) -> Unit
+        uri: Uri,
+        observer: (selfChange: Boolean) -> Unit
 ): ContentObserver {
-  val contentObserver = object : ContentObserver(Handler()) {
-    override fun onChange(selfChange: Boolean) {
-      observer(selfChange)
+    val contentObserver = object : ContentObserver(Handler()) {
+        override fun onChange(selfChange: Boolean) {
+            observer(selfChange)
+        }
     }
-  }
-  registerContentObserver(uri, true, contentObserver)
-  return contentObserver
+    registerContentObserver(uri, true, contentObserver)
+    return contentObserver
 }

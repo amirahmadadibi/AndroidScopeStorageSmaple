@@ -64,160 +64,167 @@ private const val DELETE_PERMISSION_REQUEST = 2
 
 class MainActivity : AppCompatActivity() {
 
-  private val viewModel: MainActivityViewModel by viewModels()
+    private val viewModel: MainActivityViewModel by viewModels()
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    setContentView(R.layout.activity_main)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-    val galleryAdapter = GalleryAdapter { image ->
-      deleteImage(image)
-    }
+        val galleryAdapter = GalleryAdapter { image ->
+            deleteImage(image)
+        }
 
-    imageGallery.also { view ->
-      view.layoutManager = GridLayoutManager(this, 3)
-      view.adapter = galleryAdapter
-    }
+        imageGallery.also { view ->
+            view.layoutManager = GridLayoutManager(this, 3)
+            view.adapter = galleryAdapter
+        }
 
-    viewModel.images.observe(this, Observer<List<Image>> { images ->
-      galleryAdapter.submitList(images)
-    })
+        viewModel.images.observe(this, Observer<List<Image>> { images ->
+            galleryAdapter.submitList(images)
+        })
 
-    viewModel.permissionNeededForDelete.observe(this, Observer { intentSender ->
-      // TODO: Use the IntentSender to prompt the user for deleting the image
-    })
+        viewModel.permissionNeededForDelete.observe(this, Observer { intentSender ->
+            // TODO: Use the IntentSender to prompt the user for deleting the image
+        })
 
-    openAlbumButton.setOnClickListener { openMediaStore() }
-    grantPermissionButton.setOnClickListener { openMediaStore() }
+        openAlbumButton.setOnClickListener { openMediaStore() }
+        grantPermissionButton.setOnClickListener { openMediaStore() }
 
-    if (!haveStoragePermission()) {
-      albumContainer.visibility = View.VISIBLE
-    } else {
-      showImages()
-    }
-  }
-
-  override fun onRequestPermissionsResult(
-      requestCode: Int,
-      permissions: Array<String>,
-      grantResults: IntArray
-  ) {
-    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    when (requestCode) {
-      READ_EXTERNAL_STORAGE_REQUEST -> {
-        // If request is cancelled, the result arrays are empty.
-        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-          showImages()
+        if (!haveStoragePermission()) {
+            albumContainer.visibility = View.VISIBLE
         } else {
-          // If we weren't granted the permission, check to see if we should show
-          // rationale for the permission.
-          val showRationale =
-              ActivityCompat.shouldShowRequestPermissionRationale(
-                  this,
-                  Manifest.permission.READ_EXTERNAL_STORAGE
-              )
-          if (showRationale) {
-            showNoAccess()
-          } else {
-            goToSettings()
-          }
+            showImages()
         }
-        return
-      }
     }
-  }
 
-  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    super.onActivityResult(requestCode, resultCode, data)
-    if (resultCode == Activity.RESULT_OK && requestCode == DELETE_PERMISSION_REQUEST) {
-      viewModel.deletePendingImage()
-    }
-  }
-
-  private fun showImages() {
-    viewModel.loadImages()
-    albumContainer.visibility = View.GONE
-    permissionContainer.visibility = View.GONE
-  }
-
-  private fun showNoAccess() {
-    albumContainer.visibility = View.GONE
-    permissionContainer.visibility = View.VISIBLE
-  }
-
-  private fun openMediaStore() {
-    if (haveStoragePermission()) {
-      showImages()
-    } else {
-      requestPermission()
-    }
-  }
-
-  private fun goToSettings() {
-    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")).apply {
-      addCategory(Intent.CATEGORY_DEFAULT)
-      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }.also { intent ->
-      startActivity(intent)
-    }
-  }
-
-
-  private fun haveStoragePermission() =
-      ContextCompat.checkSelfPermission(
-          this,
-          Manifest.permission.READ_EXTERNAL_STORAGE
-      ) == PackageManager.PERMISSION_GRANTED
-
-
-  private fun requestPermission() {
-    // TODO: Request the required permissions
-  }
-
-  private fun deleteImage(image: Image) {
-    MaterialAlertDialogBuilder(this)
-        .setTitle(R.string.delete_dialog_title)
-        .setMessage(getString(R.string.delete_dialog_message, image.displayName))
-        .setPositiveButton(R.string.delete_dialog_positive) { _: DialogInterface, _: Int ->
-          viewModel.deleteImage(image)
+    override fun onRequestPermissionsResult(
+            requestCode: Int,
+            permissions: Array<String>,
+            grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            READ_EXTERNAL_STORAGE_REQUEST -> {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    showImages()
+                } else {
+                    // If we weren't granted the permission, check to see if we should show
+                    // rationale for the permission.
+                    val showRationale =
+                            ActivityCompat.shouldShowRequestPermissionRationale(
+                                    this,
+                                    Manifest.permission.READ_EXTERNAL_STORAGE
+                            )
+                    if (showRationale) {
+                        showNoAccess()
+                    } else {
+                        goToSettings()
+                    }
+                }
+                return
+            }
         }
-        .setNegativeButton(R.string.delete_dialog_negative) { dialog: DialogInterface, _: Int ->
-          dialog.dismiss()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode == Activity.RESULT_OK && requestCode == DELETE_PERMISSION_REQUEST) {
+            viewModel.deletePendingImage()
         }
-        .show()
-  }
-
-  private inner class GalleryAdapter(val onClick: (Image) -> Unit) :
-      ListAdapter<Image, ImageViewHolder>(Image.DiffCallback) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
-      val layoutInflater = LayoutInflater.from(parent.context)
-      val view = layoutInflater.inflate(R.layout.image_layout, parent, false)
-      return ImageViewHolder(view, onClick)
     }
 
-    override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
-      val image = getItem(position)
-      holder.rootView.tag = image
-
-      Glide.with(holder.imageView)
-          .load(image.contentUri)
-          .thumbnail(0.33f)
-          .centerCrop()
-          .into(holder.imageView)
+    private fun showImages() {
+        viewModel.loadImages()
+        albumContainer.visibility = View.GONE
+        permissionContainer.visibility = View.GONE
     }
-  }
+
+    private fun showNoAccess() {
+        albumContainer.visibility = View.GONE
+        permissionContainer.visibility = View.VISIBLE
+    }
+
+    private fun openMediaStore() {
+        if (haveStoragePermission()) {
+            showImages()
+        } else {
+            requestPermission()
+        }
+    }
+
+    private fun goToSettings() {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")).apply {
+            addCategory(Intent.CATEGORY_DEFAULT)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }.also { intent ->
+            startActivity(intent)
+        }
+    }
+
+
+    private fun haveStoragePermission() =
+            ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+
+
+    private fun requestPermission() {
+        // TODO: Request the required permissions
+        if (!haveStoragePermission()) {
+            val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            ActivityCompat.requestPermissions(
+                    this, permissions, READ_EXTERNAL_STORAGE_REQUEST
+            )
+        }
+
+    }
+
+    private fun deleteImage(image: Image) {
+        MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_dialog_title)
+                .setMessage(getString(R.string.delete_dialog_message, image.displayName))
+                .setPositiveButton(R.string.delete_dialog_positive) { _: DialogInterface, _: Int ->
+                    viewModel.deleteImage(image)
+                }
+                .setNegativeButton(R.string.delete_dialog_negative) { dialog: DialogInterface, _: Int ->
+                    dialog.dismiss()
+                }
+                .show()
+    }
+
+    private inner class GalleryAdapter(val onClick: (Image) -> Unit) :
+            ListAdapter<Image, ImageViewHolder>(Image.DiffCallback) {
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
+            val layoutInflater = LayoutInflater.from(parent.context)
+            val view = layoutInflater.inflate(R.layout.image_layout, parent, false)
+            return ImageViewHolder(view, onClick)
+        }
+
+        override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
+            val image = getItem(position)
+            holder.rootView.tag = image
+
+            Glide.with(holder.imageView)
+                    .load(image.contentUri)
+                    .thumbnail(0.33f)
+                    .centerCrop()
+                    .into(holder.imageView)
+        }
+    }
 }
 
 private class ImageViewHolder(view: View, onClick: (Image) -> Unit) :
-    RecyclerView.ViewHolder(view) {
-  val rootView = view
-  val imageView: ImageView = view.findViewById(R.id.image)
+        RecyclerView.ViewHolder(view) {
+    val rootView = view
+    val imageView: ImageView = view.findViewById(R.id.image)
 
-  init {
-    imageView.setOnClickListener {
-      val image = rootView.tag as? Image ?: return@setOnClickListener
-      onClick(image)
+    init {
+        imageView.setOnClickListener {
+            val image = rootView.tag as? Image ?: return@setOnClickListener
+            onClick(image)
+        }
     }
-  }
 }
