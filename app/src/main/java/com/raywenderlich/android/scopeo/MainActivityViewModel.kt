@@ -37,6 +37,7 @@ package com.raywenderlich.android.scopeo
 import android.annotation.SuppressLint
 import android.annotation.TargetApi
 import android.app.Application
+import android.app.RecoverableSecurityException
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.IntentSender
@@ -75,6 +76,11 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
             if (contentObserver == null) {
                 // TODO: Register the content observer to listen for changes
+                //ContentObserver is a class that listens for changes whenever the data in the content provider changes.
+                // Since data will change whenever you delete any image in the app, you need to use a ContentObserver.
+                contentObserver = getApplication<Application>().contentResolver.registerObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI) {
+                    loadImages()
+                }
             }
         }
     }
@@ -157,6 +163,26 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     private suspend fun performDeleteImage(image: Image) {
         withContext(Dispatchers.IO) {
             // TODO: Add code to delete an image from MediaStore
+            //in android 10 and above we can not delete or modify items from MediaStore directly
+
+            try {
+                getApplication<Application>().contentResolver.delete(
+                        image.contentUri, "${MediaStore.Images.Media._ID} = ? ", arrayOf(image.id.toString())
+                )
+            } catch (securityException: SecurityException) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    //This exception is only appropriate where there is a concrete action the user
+                    //can take to recover and make forward progress
+                    val recoverableSecurityException = securityException as? RecoverableSecurityException
+                            ?: throw securityException
+                    pendingDeleteImage = image
+                    //intentSender -> A description of an Intent and target action to perform with it.
+                    //intentSender -> is action for user to grantAccess to remove item or modify
+                    _permissionNeededForDelete.postValue(recoverableSecurityException.userAction.actionIntent.intentSender)
+                } else {
+                    throw securityException
+                }
+            }
         }
     }
 
@@ -170,6 +196,9 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         // TODO: Unregister the content observer
+        contentObserver?.let {
+            getApplication<Application>().contentResolver.unregisterContentObserver(it)
+        }
     }
 }
 

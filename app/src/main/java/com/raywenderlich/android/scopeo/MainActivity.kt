@@ -85,6 +85,17 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.permissionNeededForDelete.observe(this, Observer { intentSender ->
             // TODO: Use the IntentSender to prompt the user for deleting the image
+            intentSender?.let {
+                startIntentSenderForResult(
+                        intentSender,
+                        DELETE_PERMISSION_REQUEST,
+                        null,
+                        0,
+                        0,
+                        0,
+                        null
+                )
+            }
         })
 
         openAlbumButton.setOnClickListener { openMediaStore() }
