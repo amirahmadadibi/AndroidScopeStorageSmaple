@@ -98,17 +98,22 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
         withContext(Dispatchers.IO) {
             // TODO: Add code to fetch the images from MediaStore
+            //your telling you want these any file that your taking from system, it's like select statement
             val projection = arrayOf(
                     MediaStore.Images.Media._ID,
                     MediaStore.Images.Media.DISPLAY_NAME,
                     MediaStore.Images.Media.DATE_TAKEN
             )
+            //you want query files based on date so ...
             val selection = "${MediaStore.Images.Media.DATE_TAKEN} >= ?"
+            //you create value that takes place of ? mark, so we create date and we wnat images from this date till ever
             val selectionArgs = arrayOf(dateToTimestamp(day = 1, month = 1, year = 2020).toString())
+            //and we want fetch files based on date and desc
             val sortOrder = "${MediaStore.Images.Media.DATE_TAKEN} DESC"
 
             getApplication<Application>().contentResolver.query(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    //INTERNAL_CONTENT_URI for app storage
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,//requesting images from outside the app storage
                     projection,
                     selection,
                     selectionArgs,
